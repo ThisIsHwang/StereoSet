@@ -43,7 +43,7 @@ def parse_args():
                         help="Load a pretrained model for the intersentence task.")
 
     parser.add_argument("--tokenizer", default="LlamaTokenizer", type=str)
-    parser.add_argument("--max-seq-length", type=int, default=64)
+    parser.add_argument("--max-seq-length", type=int, default=2048)
     parser.add_argument("--unconditional_start_token",
                         default="<s>", type=str, help="Beginning of sequence token.")
     parser.add_argument("--skip-intersentence",
@@ -57,7 +57,7 @@ class BiasEvaluator(object):
     def __init__(self, pretrained_class="/home/doubleyyh/models/vicuna-13b-1.1", no_cuda=False, batch_size=51, input_file="data/bias.json",
                  intrasentence_model="/home/doubleyyh/models/vicuna-13b-1.1", intrasentence_load_path=None, intersentence_model="/home/doubleyyh/models/vicuna-13b-1.1",
                  intersentence_load_path=None, tokenizer="/home/doubleyyh/models/vicuna-13b-1.1", unconditional_start_token='<s>',
-                 skip_intrasentence=False, skip_intersentence=False, max_seq_length=64, small=False,
+                 skip_intrasentence=False, skip_intersentence=False, max_seq_length=2048, small=False,
                  output_dir="predictions/"):
         print(f"Loading {input_file}...")
         self.BATCH_SIZE = batch_size
@@ -109,7 +109,7 @@ class BiasEvaluator(object):
         for cluster in tqdm(clusters):
             for sentence in cluster.sentences:
                 probabilities = {}
-                score = get_perplexity(sentence.sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length)
+                score = get_perplexity(sentence.sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, "")
                 probabilities['id'] = sentence.ID
                 probabilities['score'] = score
 
@@ -136,10 +136,10 @@ class BiasEvaluator(object):
                 if sentence.sentence[-1] not in [".", "!", "?"]:
                     sentence.sentence = f"{sentence.sentence}."
                 full_sentence = f"{context} {sentence.sentence}"
-                context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length)
+                context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, context)
 
                 full_sentence = f"{sentence.sentence}"
-                no_context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length)
+                no_context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, "")
 
                 overall_score = no_context_score / context_score
                 probabilities['id'] = sentence.ID

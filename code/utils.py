@@ -126,8 +126,9 @@ class text_dataset(Dataset):
     def __len__(self):
         return len(self.x_y_list[0])
 
-def get_perplexity(sentence, wrapper, tokenizer, device, max_length, stride=-1):
+def get_perplexity(sentence, wrapper, tokenizer, device, max_length, context, stride=-1):
     encodings = tokenizer(sentence, return_tensors='pt')
+    context_encodings = tokenizer(context, return_tensors='pt')
     lls_regular = []
     ppl_regular = None
     if stride <= 0:
@@ -136,9 +137,11 @@ def get_perplexity(sentence, wrapper, tokenizer, device, max_length, stride=-1):
     for i in range(0, encodings.input_ids.size(1), stride):
         begin_loc = max(i + stride - max_length, 0)
         end_loc = min(i + stride, encodings.input_ids.size(1))
-        trg_len = end_loc - i  # may be different from stride on last loop
+        trg_len = end_loc - i - len(context_encodings["input_ids"][0])# may be different from stride on last loop
         input_ids = encodings.input_ids[:, begin_loc:end_loc].to(device)
         target_ids = input_ids.clone()
+        #if i == 0:
+        target_ids[:, :len(context_encodings["input_ids"][0])] = -100
         target_ids[:, :-trg_len] = -100
 
         with torch.no_grad():
@@ -147,5 +150,5 @@ def get_perplexity(sentence, wrapper, tokenizer, device, max_length, stride=-1):
 
         lls_regular.append(log_likelihood_regular)
 
-        ppl_regular = torch.exp(torch.stack(lls_regular).sum() / end_loc)
+        ppl_regular = torch.exp(torch.stack(lls_regular).sum() / (end_loc - len(context_encodings["input_ids"][0])))
     return ppl_regular
