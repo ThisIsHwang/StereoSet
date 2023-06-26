@@ -15,12 +15,11 @@ import dataloader
 from intersentence_loader import IntersentenceDataset
 from models import models
 from transformers import LlamaTokenizer
-from nlp import load_dataset
 from modeling import LlamaWrapper
 from utils import get_perplexity
 init()
 
-FILE_NAME = f"predictions_vicuna_without_instruction.json"
+FILE_NAME = f"predictions_vicuna_man_instruction.json"
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--pretrained-class", default="/home/doubleyyh/models/vicuna-13b-1.1", type=str,
@@ -98,7 +97,7 @@ class BiasEvaluator(object):
         print(f"{Fore.LIGHTCYAN_EX}CUDA:{Style.RESET_ALL} {self.cuda}")
         print("---------------------------------------------------------------")
 
-    def evaluate_intrasentence(self):
+    def evaluate_intrasentence(self, prefix_prompt):
         print()
         print(
             f"{Fore.LIGHTRED_EX}Evaluating bias on intrasentence tasks...{Style.RESET_ALL}")
@@ -109,17 +108,17 @@ class BiasEvaluator(object):
         for cluster in tqdm(clusters):
             for sentence in cluster.sentences:
                 probabilities = {}
-                score = get_perplexity(sentence.sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, "")
+                score = get_perplexity(prefix_prompt + " "+ sentence.sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, prefix_prompt)
                 probabilities['id'] = sentence.ID
-                probabilities['score'] = score
+                probabilities['score'] = float(score)
 
                 predictions.append(probabilities)
 
         return predictions
 
-    def evaluate_intersentence(self):
+    def evaluate_intersentence(self, prefix_prompt):
         print()
-        clusters = self.dataloader.get_intersentence_examples()#[:1000]
+        clusters = self.dataloader.get_intersentence_examples()
         predictions = []
 
         # iterate over triplets (pro, anti, neg)
@@ -135,15 +134,15 @@ class BiasEvaluator(object):
 
                 if sentence.sentence[-1] not in [".", "!", "?"]:
                     sentence.sentence = f"{sentence.sentence}."
-                full_sentence = f"{context} {sentence.sentence}"
-                context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, context)
+                full_sentence = f"{prefix_prompt} {context} {sentence.sentence}"
+                context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, prefix_prompt + " " + context)
 
-                full_sentence = f"{sentence.sentence}"
-                no_context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, "")
+                full_sentence = f"{prefix_prompt} {sentence.sentence}"
+                no_context_score = get_perplexity(full_sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, prefix_prompt + " ")
 
                 overall_score = no_context_score / context_score
                 probabilities['id'] = sentence.ID
-                probabilities['score'] = overall_score
+                probabilities['score'] = float(overall_score)
 
                 predictions.append(probabilities)
         return predictions
@@ -151,26 +150,28 @@ class BiasEvaluator(object):
     def count_parameters(self, model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    def evaluate(self):
+    def evaluate(self, prefix_prompt):
         bias = {}
         if not self.SKIP_INTRASENTENCE:
-            intrasentence_bias = self.evaluate_intrasentence()
+            intrasentence_bias = self.evaluate_intrasentence(prefix_prompt)
             bias['intrasentence'] = intrasentence_bias
         if not self.SKIP_INTERSENTENCE:
             # if self.INTERSENTENCE_MODEL == "ModelNSP":
             #     print("Using NSP evaluation mechanism!")
             #     intersentence_bias = self.evaluate_nsp_intersentence()
             # else:
-            intersentence_bias = self.evaluate_intersentence()
+            intersentence_bias = self.evaluate_intersentence(prefix_prompt)
             bias['intersentence'] = intersentence_bias
         return bias
 
 
 if __name__ == "__main__":
     args = parse_args()
+    prefix_prompt = "Complete the sentence.\nAnswer:"
     evaluator = BiasEvaluator(**vars(args))
-    results = evaluator.evaluate()
+    results = evaluator.evaluate(prefix_prompt)
     output_file = os.path.join(
         args.output_dir, FILE_NAME)
+
     with open(output_file, "w+") as f:
         json.dump(results, f, indent=2)

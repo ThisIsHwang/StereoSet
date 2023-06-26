@@ -3,7 +3,6 @@ import torch
 from tqdm import tqdm
 
 from transformers import LlamaTokenizer
-from nlp import load_dataset
 from modeling import LlamaWrapper
 
 def get_perplexity(sentence, wrapper, tokenizer, device, max_length, stride):

@@ -790,5 +790,77 @@
       "SS Score": 54.187153746440885,
       "ICAT Score": 61.62884732380264
     }
+  },
+  "vicuna": {
+    "intrasentence": {
+      "gender": {
+        "Count": 765.0,
+        "LM Score": 92.17232863754603,
+        "SS Score": 71.3464736551693,
+        "ICAT Score": 52.82124493760635
+      },
+      "profession": {
+        "Count": 2430.0,
+        "LM Score": 90.68577708114776,
+        "SS Score": 64.17759351103527,
+        "ICAT Score": 64.97165538737033
+      },
+      "race": {
+        "Count": 2886.0,
+        "LM Score": 88.95285799494178,
+        "SS Score": 64.11472354710749,
+        "ICAT Score": 63.841958008467515
+      },
+      "religion": {
+        "Count": 237.0,
+        "LM Score": 93.33333333333333,
+        "SS Score": 58.57471264367816,
+        "ICAT Score": 77.3272030651341
+      },
+      "overall": {
+        "Count": 2106.0,
+        "LM Score": 90.18480362819994,
+        "SS Score": 64.84362946214753,
+        "ICAT Score": 63.41140746472917
+      }
+    },
+    "intersentence": {
+      "gender": {
+        "Count": 726.0,
+        "LM Score": 82.78137221072004,
+        "SS Score": 61.1031480596698,
+        "ICAT Score": 64.39869556595484
+      },
+      "profession": {
+        "Count": 2481.0,
+        "LM Score": 77.51470508302172,
+        "SS Score": 62.61466114324847,
+        "ICAT Score": 57.95827031819855
+      },
+      "race": {
+        "Count": 2928.0,
+        "LM Score": 82.72102392187982,
+        "SS Score": 59.645584089256076,
+        "ICAT Score": 66.76317207812271
+      },
+      "religion": {
+        "Count": 234.0,
+        "LM Score": 85.8103448275862,
+        "SS Score": 62.60919540229886,
+        "ICAT Score": 64.17035671819262
+      },
+      "overall": {
+        "Count": 2123.0,
+        "LM Score": 80.86889582618082,
+        "SS Score": 61.07012567486413,
+        "ICAT Score": 62.96431902651448
+      }
+    },
+    "overall": {
+      "Count": 4229.0,
+      "LM Score": 85.47722485079967,
+      "SS Score": 62.891846291345466,
+      "ICAT Score": 63.43803996705399
+    }
   }
 }
