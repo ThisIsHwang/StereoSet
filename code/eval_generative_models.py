@@ -111,7 +111,7 @@ class BiasEvaluator(object):
                 probabilities = {}
                 score = get_perplexity(sentence.sentence, self.wrapper, self.tokenizer, self.device, self.max_seq_length, "")
                 probabilities['id'] = sentence.ID
-                probabilities['score'] = score
+                probabilities['score'] = float(score)
 
                 predictions.append(probabilities)
 
@@ -119,7 +119,7 @@ class BiasEvaluator(object):
 
     def evaluate_intersentence(self):
         print()
-        clusters = self.dataloader.get_intersentence_examples()#[:1000]
+        clusters = self.dataloader.get_intersentence_examples()
         predictions = []
 
         # iterate over triplets (pro, anti, neg)
@@ -143,7 +143,7 @@ class BiasEvaluator(object):
 
                 overall_score = no_context_score / context_score
                 probabilities['id'] = sentence.ID
-                probabilities['score'] = overall_score
+                probabilities['score'] = float(overall_score)
 
                 predictions.append(probabilities)
         return predictions
