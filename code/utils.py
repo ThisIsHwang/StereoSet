@@ -10,21 +10,22 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import BertModel, BertTokenizer, BertConfig
 from tqdm import tqdm
 
-class BertLayerNorm(nn.Module):
-        def __init__(self, hidden_size, eps=1e-12):
-            """Construct a layernorm module in the TF style (epsilon inside the square root).
-            """
-            super(BertLayerNorm, self).__init__()
-            self.weight = nn.Parameter(torch.ones(hidden_size))
-            self.bias = nn.Parameter(torch.zeros(hidden_size))
-            self.variance_epsilon = eps
 
-        def forward(self, x):
-            u = x.mean(-1, keepdim=True)
-            s = (x - u).pow(2).mean(-1, keepdim=True)
-            x = (x - u) / torch.sqrt(s + self.variance_epsilon)
-            return self.weight * x + self.bias
-        
+class BertLayerNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-12):
+        """Construct a layernorm module in the TF style (epsilon inside the square root).
+        """
+        super(BertLayerNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.bias = nn.Parameter(torch.zeros(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.weight * x + self.bias
+
 
 class BertForSequenceClassification(nn.Module):
     """BERT model for classification.
@@ -64,67 +65,69 @@ class BertForSequenceClassification(nn.Module):
     logits = model(input_ids, token_type_ids, input_mask)
     ```
     """
+
     def __init__(self, num_labels=2):
         super(BertForSequenceClassification, self).__init__()
         self.num_labels = num_labels
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         config = BertConfig(vocab_size_or_config_json_file=32000, hidden_size=768,
-        num_hidden_layers=12, num_attention_heads=12, intermediate_size=3072)
+                            num_hidden_layers=12, num_attention_heads=12, intermediate_size=3072)
         self.config = config
 
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         nn.init.xavier_normal_(self.classifier.weight)
+
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None):
         _, pooled_output = self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 
         return logits
+
     def freeze_bert_encoder(self):
         for param in self.bert.parameters():
             param.requires_grad = False
-    
+
     def unfreeze_bert_encoder(self):
         for param in self.bert.parameters():
             param.requires_grad = True
 
+
 class text_dataset(Dataset):
-    def __init__(self,x_y_list, tokenizer=None, max_seq_length=None, transform=None):
-        
+    def __init__(self, x_y_list, tokenizer=None, max_seq_length=None, transform=None):
         self.x_y_list = x_y_list
         self.transform = transform
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
-        
-    def __getitem__(self,index):
-         
+
+    def __getitem__(self, index):
         tokenized_review = self.tokenizer.tokenize(self.x_y_list[0][index])
-        
+
         if len(tokenized_review) > self.max_seq_length:
             tokenized_review = tokenized_review[:self.max_seq_length]
-            
-        ids_review  = self.tokenizer.convert_tokens_to_ids(tokenized_review)
+
+        ids_review = self.tokenizer.convert_tokens_to_ids(tokenized_review)
 
         padding = [0] * (self.max_seq_length - len(ids_review))
-        
+
         ids_review += padding
-        
+
         assert len(ids_review) == self.max_seq_length
-        
-        #print(ids_review)
+
+        # print(ids_review)
         ids_review = torch.tensor(ids_review)
-        
-        sentiment = self.x_y_list[1][index] # color        
+
+        sentiment = self.x_y_list[1][index]  # color
         list_of_labels = [torch.from_numpy(np.array(sentiment))]
-        
-        
+
         print(ids_review, list_of_labels)
         input()
         return ids_review, list_of_labels[0]
-    
+
     def __len__(self):
         return len(self.x_y_list[0])
+
 
 def get_perplexity(sentence, wrapper, tokenizer, device, max_length, context, stride=-1):
     encodings = tokenizer(sentence, return_tensors='pt')
@@ -137,15 +140,47 @@ def get_perplexity(sentence, wrapper, tokenizer, device, max_length, context, st
     for i in range(0, encodings.input_ids.size(1), stride):
         begin_loc = max(i + stride - max_length, 0)
         end_loc = min(i + stride, encodings.input_ids.size(1))
-        trg_len = end_loc - i - len(context_encodings["input_ids"][0])# may be different from stride on last loop
+        trg_len = end_loc - i - len(context_encodings["input_ids"][0])  # may be different from stride on last loop
         input_ids = encodings.input_ids[:, begin_loc:end_loc].to(device)
         target_ids = input_ids.clone()
-        #if i == 0:
+        # if i == 0:
         target_ids[:, :len(context_encodings["input_ids"][0])] = -100
         target_ids[:, :-trg_len] = -100
 
         with torch.no_grad():
             loss_regular = wrapper.compute_loss(input_ids, labels=target_ids)
+            log_likelihood_regular = loss_regular * trg_len
+
+        lls_regular.append(log_likelihood_regular)
+
+        ppl_regular = torch.exp(torch.stack(lls_regular).sum() / (end_loc - len(context_encodings["input_ids"][0])))
+    return ppl_regular
+
+
+def get_perplexity_for_aggregate(sentence, wrapper, tokenizer, device, max_length, prefix_prompts, stride=-1):
+    prompts = [prefix + " " + sentence for prefix in prefix_prompts]
+
+    tokenizer.pad_token = tokenizer.eos_token
+    encodings = tokenizer(prompts, return_tensors='pt', padding=True)
+    context_encodings = tokenizer(prefix_prompts, return_tensors='pt', padding=True)
+
+    lls_regular = []
+    ppl_regular = None
+    if stride <= 0:
+        stride = max_length
+
+    for i in range(0, encodings.input_ids.size(1), stride):
+        begin_loc = max(i + stride - max_length, 0)
+        end_loc = min(i + stride, encodings.input_ids.size(1))
+        trg_len = end_loc - i - len(context_encodings["input_ids"][0])  # may be different from stride on last loop
+        input_ids = encodings.input_ids[:, begin_loc:end_loc].to(device)
+        target_ids = input_ids.clone()
+        for i in range(len(target_ids)):
+            target_ids[:, :len(context_encodings["input_ids"][i])] = -100
+        target_ids[:, :-trg_len] = -100
+
+        with torch.no_grad():
+            loss_regular = wrapper.compute_loss_aggregate_persona(input_ids, labels=target_ids)
             log_likelihood_regular = loss_regular * trg_len
 
         lls_regular.append(log_likelihood_regular)

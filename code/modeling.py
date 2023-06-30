@@ -324,6 +324,21 @@ class LlamaWrapper(ModelWrapper):
         loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
         return loss
 
+    def compute_loss_aggregate_persona(self, input_ids: torch.LongTensor, labels: torch.LongTensor) -> torch.Tensor:
+        self._model.eval()
+        all_logits = []
+        with torch.no_grad():
+            all_logits = self._model(input_ids).logits
+        mean_logits = torch.mean(all_logits, dim=0)
+
+        # Shift so that tokens < n predict n
+        shift_logits = mean_logits[..., :-1, :].contiguous()
+        shift_labels = labels[0, 1:].contiguous()
+        # Flatten the tokens
+        loss_fct = CrossEntropyLoss()
+        loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+        return loss
+
     def compute_loss_self_debiasing(self, input_ids: torch.Tensor, trg_len: int, debiasing_prefixes: List[str], decay_constant: float = 50,
                                     epsilon: float = 0.01, debug: bool = False) -> torch.Tensor:
 
